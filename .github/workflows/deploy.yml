@@ -1,0 +1,36 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Docker Login
+      run: echo "${{ secrets.DOCKER_PASS }}" | docker login -u "${{ secrets.DOCKER_USER }}" --password-stdin
+
+    - name: Build Image
+      run: docker build -t ${{ secrets.DOCKER_USER }}/app .
+
+    - name: Push Image
+      run: docker push ${{ secrets.DOCKER_USER }}/app
+
+    - name: SSH Deploy
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.BASTION_IP }}
+        username: ec2-user
+        key: ${{ secrets.SSH_KEY }}
+
+        script: |
+          ssh ec2-user@PRIVATE_IP << EOF
+          kubectl set image deployment/app app=${{ secrets.DOCKER_USER }}/app
+          EOF
