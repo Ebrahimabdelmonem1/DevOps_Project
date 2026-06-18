@@ -1,0 +1,85 @@
+- hosts: private
+  become: true
+
+  tasks:
+
+  # =========================
+  # Update & prerequisites
+  # =========================
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+
+  - name: Install required packages
+    apt:
+      name:
+        - docker.io
+        - nginx
+        - python3-pip
+      state: present
+
+  - name: Install Docker dependencies
+    apt:
+      name:
+        - python3-docker
+      state: present
+      update_cache: yes
+
+  # =========================
+  # Start services
+  # =========================
+  - name: Enable and start Docker
+    service:
+      name: docker
+      state: started
+      enabled: true
+
+  - name: Enable and start Nginx
+    service:
+      name: nginx
+      state: started
+      enabled: true
+
+  # =========================
+  # Deploy HTML app
+  # =========================
+  - name: Create web directory
+    file:
+      path: /opt/web
+      state: directory
+
+  - name: Copy HTML file
+    copy:
+      src: files/index.html
+      dest: /opt/web/index.html
+
+  # =========================
+  # Run Docker container
+  # =========================
+  - name: Run web container
+    docker_container:
+      name: web
+      image: nginx:latest
+      state: started
+      restart_policy: always
+      ports:
+        - "8080:80"
+      volumes:
+        - /opt/web:/usr/share/nginx/html:ro
+
+  # =========================
+  # Nginx Reverse Proxy
+  # =========================
+  - name: Deploy Nginx site config
+    template:
+      src: templates/default.j2
+      dest: /etc/nginx/sites-available/default
+
+  - name: Test Nginx config
+    command: nginx -t
+    changed_when: false
+
+  - name: Restart Nginx
+    service:
+      name: nginx
+      state: restarted
